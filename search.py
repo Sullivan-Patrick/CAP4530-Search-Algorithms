@@ -1,7 +1,5 @@
 """
 Contains several search algorithms and heuristics to experiment with.
-
-Please note: you will need to provide a usage to
 """
 
 import argparse
@@ -33,6 +31,9 @@ if not os.path.exists(input_file):
     exit(1)
 
 sy, sx, gy, gx, grid = None, None, None, None, []
+EXPLORED = RED + 'X' + END
+EXPLORED_LAST_PATH = CYAN + 'X' + END
+UNEXPLORED = '.'
 
 # Transform input file to 2d list
 for line in open(input_file):
@@ -41,15 +42,15 @@ for line in open(input_file):
         if c == 'S':
             sy = len(grid)
             sx = len(row)
-            row.append(".")
+            row.append(UNEXPLORED)
         elif c == 'G':
             gy = len(grid)
             gx = len(row)
-            row.append(".")
+            row.append(UNEXPLORED)
         elif c == '%':
             row.append('%')
         elif c == ' ':
-            row.append('.')
+            row.append(UNEXPLORED)
         elif c.isspace():
             continue
         else:
@@ -62,8 +63,8 @@ for line in open(input_file):
 ans_expanded = 0
 ans_cost = 0
 N, M = len(grid), len(grid[0])
-can_traverse = lambda y, x: 0 <= y < N and 0 <= x < M and (grid[y][x] == '.' or grid[y][x] == ',')
-dirs = [[0, 1, '>'], [0, -1, '<'], [1, 0, 'v'], [-1, 0, '^']]
+can_traverse = lambda y, x: 0 <= y < N and 0 <= x < M and (grid[y][x] == UNEXPLORED)
+dirs = [[0, 1, GREEN + '>' + END], [0, -1, GREEN + '<' + END], [1, 0, GREEN + 'v' + END], [-1, 0, GREEN + '^' + END]]
 
 
 # Euclidean distance
@@ -85,7 +86,7 @@ def dfs(heuristic, sy, sx, gy, gx):
         global ans_cost, ans_expanded
 
         ans_expanded += 1
-        grid[y][x] = 'X'
+        grid[y][x] = EXPLORED
         if y == gy and x == gx:
             grid[y][x] = '*'
             ans_cost = cost
@@ -96,7 +97,7 @@ def dfs(heuristic, sy, sx, gy, gx):
             if can_traverse(new_y, new_x):
                 res = helper(new_y, new_x, cost + 1)
                 if res:
-                    grid[y][x] = GREEN + d + END
+                    grid[y][x] = d
                     return True
         return False
 
@@ -123,7 +124,7 @@ def greedy(heuristic, sy, sx, gy, gx):
         h, y, x, path = heapq.heappop(pq)
         visited.add((y, x))
 
-        grid[y][x] = 'X'
+        grid[y][x] = EXPLORED
         expanded += 1
         if y == gy and x == gx:
             ans_expanded = expanded
@@ -135,7 +136,7 @@ def greedy(heuristic, sy, sx, gy, gx):
         for y2, x2, d in dirs:
             y3, x3 = y2 + y, x2 + x
             if (y3, x3) not in visited and can_traverse(y3, x3):
-                new_path = path + [(y3, x3, GREEN + d + END)]
+                new_path = path + [(y3, x3, d)]
                 heapq.heappush(pq, (heuristic(y3, x3, gy, gx), y3, x3, new_path))
 
 
@@ -152,7 +153,7 @@ def iterative_deepening(heuristic, sy, sx, gy, gx):
         ans_expanded += 1
         visited.add((y, x))
 
-        grid[y][x] = 'X'
+        grid[y][x] = EXPLORED_LAST_PATH
         if y == gy and x == gx:
             grid[y][x] = '*'
             ans_cost = cost
@@ -166,28 +167,61 @@ def iterative_deepening(heuristic, sy, sx, gy, gx):
             if can_traverse(new_y, new_x):
                 res = helper(new_y, new_x, cost + 1, remaining_depth - 1)
                 if res:
-                    grid[y][x] = GREEN + d + END
+                    grid[y][x] = d
                     return True
         return False
 
     for i in itertools.count(start=0, step=1):
+        found = False
+
         if helper(sy, sx, 0, i):
             # use our visited set to set visited tiles in grid
             for y, x in visited:
-                if grid[y][x] == '.':
-                    grid[y][x] = RED + 'X' + END
+                if grid[y][x] == UNEXPLORED:
+                    grid[y][x] = EXPLORED
             return
 
         # we didn't find our path - reset visited
         for i in range(N):
             for j in range(M):
-                if grid[i][j] == 'X':
-                    grid[i][j] = '.'
+                if grid[i][j] == EXPLORED_LAST_PATH:
+                    grid[i][j] = UNEXPLORED
 
 
-# A* search. Because a* with equal edge costs is just best-first, delegate call
+
+
+
+# A* search
 def astar(heuristic, sy, sx, gy, gx):
-    return greedy(heuristic, sy, sx, gy, gx)
+    if not heuristic:
+        print("A* is informed and requires heuristic. Exiting...")
+        exit(1)
+    global ans_expanded, ans_cost
+    pq = []
+    heapq.heappush(pq, (heuristic(sy, sx, gy, gx), 0, sy, sx, []))
+    expanded = 0
+
+    visited = set()
+    while pq:
+        h, cost, y, x, path = heapq.heappop(pq)
+        visited.add((y, x))
+
+        grid[y][x] = EXPLORED
+        expanded += 1
+        if y == gy and x == gx:
+            ans_expanded = expanded
+            ans_cost = cost
+            for i, j, d in path:
+                grid[i][j] = d
+            break
+
+        for y2, x2, d in dirs:
+            y3, x3 = y2 + y, x2 + x
+            if (y3, x3) not in visited and can_traverse(y3, x3):
+                new_path = path + [(y3, x3, d)]
+                heapq.heappush(pq, (heuristic(y3, x3, gy, gx) + cost + 1, cost + 1, y3, x3, new_path))
+
+
 
 
 # link arguments to method and heuristic and execute
@@ -209,23 +243,15 @@ method(heuristic, sy, sx, gy, gx)
 # Make output prettier and display results
 grid[sy][sx] = CYAN + 'S' + END
 grid[gy][gx] = CYAN + 'G' + END
-print('\n========= Expanded Tiles and Path=========')
-for i in range(N):
-    for j in range(M):
-        if grid[i][j] == 'X':
-            grid[i][j] = RED + 'X' + END
+print(CYAN + '\n========= Expanded Tiles and Path=========' + END)
 for row in grid:
     print("".join(row))
 
-vs = {GREEN + c + END for c in {'<', '>', 'v', '^'}}
-# print("Sum of expanded:" + str(sum(sum(1 if v == RED + 'X' + END else 0 for v in r) for r in grid)))
-# print("Sum of path:" + str(sum(sum(1 if v in vs else 0 for v in r) for r in grid)))
-
-print('\n\n========= Path Without Expanded Tiles =========\n')
+print(CYAN + '\n\n========= Path Without Expanded Tiles =========' + END)
 for i in range(N):
     for j in range(M):
-        if grid[i][j] == RED + 'X' + END:
-            grid[i][j] = '.'
+        if grid[i][j] in {EXPLORED, EXPLORED_LAST_PATH}:
+            grid[i][j] = UNEXPLORED
 for row in grid:
     print("".join(row))
 
