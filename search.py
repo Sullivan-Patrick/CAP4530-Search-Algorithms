@@ -7,6 +7,7 @@ import os
 from math import sqrt
 import heapq
 import itertools
+import time
 
 parser = argparse.ArgumentParser()
 
@@ -119,10 +120,9 @@ def greedy(heuristic, sy, sx, gy, gx):
 
     # use a visited set instead of marking grid, so we know which tiles are on priority queue - prevents case
     # where there is an infinite loop between tiles which have the best heuristics
-    visited = set()
+    visited = {sy, sx}
     while pq:
         h, y, x, path = heapq.heappop(pq)
-        visited.add((y, x))
 
         grid[y][x] = EXPLORED
         expanded += 1
@@ -136,6 +136,7 @@ def greedy(heuristic, sy, sx, gy, gx):
         for y2, x2, d in dirs:
             y3, x3 = y2 + y, x2 + x
             if (y3, x3) not in visited and can_traverse(y3, x3):
+                visited.add((y, x))
                 new_path = path + [(y3, x3, d)]
                 heapq.heappush(pq, (heuristic(y3, x3, gy, gx), y3, x3, new_path))
 
@@ -188,9 +189,6 @@ def iterative_deepening(heuristic, sy, sx, gy, gx):
                     grid[i][j] = UNEXPLORED
 
 
-
-
-
 # A* search
 def astar(heuristic, sy, sx, gy, gx):
     if not heuristic:
@@ -201,10 +199,10 @@ def astar(heuristic, sy, sx, gy, gx):
     heapq.heappush(pq, (heuristic(sy, sx, gy, gx), 0, sy, sx, []))
     expanded = 0
 
-    visited = set()
+    visited = {(sy, sx): 0}
     while pq:
         h, cost, y, x, path = heapq.heappop(pq)
-        visited.add((y, x))
+        time.sleep(.001)
 
         grid[y][x] = EXPLORED
         expanded += 1
@@ -217,11 +215,10 @@ def astar(heuristic, sy, sx, gy, gx):
 
         for y2, x2, d in dirs:
             y3, x3 = y2 + y, x2 + x
-            if (y3, x3) not in visited and can_traverse(y3, x3):
+            if ((y3, x3) not in visited or visited[(y3, x3)] > cost + 1) and can_traverse(y3, x3):
+                visited[y3, x3] = cost + 1
                 new_path = path + [(y3, x3, d)]
                 heapq.heappush(pq, (heuristic(y3, x3, gy, gx) + cost + 1, cost + 1, y3, x3, new_path))
-
-
 
 
 # link arguments to method and heuristic and execute
@@ -239,7 +236,6 @@ except KeyError as e:
 
 method(heuristic, sy, sx, gy, gx)
 
-
 # Make output prettier and display results
 grid[sy][sx] = CYAN + 'S' + END
 grid[gy][gx] = CYAN + 'G' + END
@@ -256,7 +252,3 @@ for row in grid:
     print("".join(row))
 
 print(f"\nExpanded : {ans_expanded}\nCost: {ans_cost}")
-print("\n Please note: there may be a small variance in result of expanded/cost due to nuances in definition-\n"
-      " what \"visiting\" a node means, if we count start/end nodes, etc. This program defines expansion\n"
-      " of node n as considering visiting the neighbors of n, and cost as moving from one node to another -e.g.\n"
-      " S and G being 1 space apart will result in a cost of 1.")
